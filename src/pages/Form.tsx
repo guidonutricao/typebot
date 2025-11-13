@@ -1,0 +1,563 @@
+import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
+import { WelcomeScreen } from "@/components/WelcomeScreen";
+import { ChatMessage } from "@/components/ChatMessage";
+import { ChatInput, ChoiceButton } from "@/components/ChatInput";
+import { SummaryScreen } from "@/components/SummaryScreen";
+import { ThankYouScreen } from "@/components/ThankYouScreen";
+import { RedirectScreen } from "@/components/RedirectScreen";
+import { ImageBlock } from "@/components/blocks/ImageBlock";
+import { NumberInput } from "@/components/blocks/NumberInput";
+import { FileUploadInput } from "@/components/blocks/FileUploadInput";
+import { RatingInput } from "@/components/blocks/RatingInput";
+import { useFlowNavigation } from "@/hooks/useFlowNavigation";
+import { useFlowStore } from "@/stores/flowStore";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { 
+  FlowData, 
+  TextBlock, 
+  ImageBlock as ImageBlockType,
+  TextInputBlock, 
+  NumberInputBlock,
+  ChoiceInputBlock,
+  FileUploadBlock,
+  RatingBlock,
+  RedirectBlock,
+  RichTextElement
+} from "@/types/flow";
+import { toast } from "sonner";
+import { getFormMeta, getFileEntry, base64ToString } from "@/utils/formStorage";
+import { parseFlowString } from "@/utils/flowParser";
+
+// Debug utilities (disponível no console)
+if (import.meta.env.DEV) {
+  import('@/utils/debugStorage');
+}
+
+type ScreenType = 'welcome' | 'chat' | 'summary' | 'thank-you' | 'redirect';
+
+type Message = {
+  content?: string;
+  richText?: RichTextElement[];
+  isBot: boolean;
+  image?: string;
+};
+
+const Index = () => {
+  const { formId } = useParams<{ formId: string }>();
+  const navigate = useNavigate();
+  const getFlow = useFlowStore((state) => state.getFlow);
+  const hasHydrated = useFlowStore((state) => state._hasHydrated);
+  
+  const [screen, setScreen] = useState<ScreenType>('welcome');
+  const [flowData, setFlowData] = useState<FlowData | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [waitingForInput, setWaitingForInput] = useState(false);
+  const [redirectUrl, setRedirectUrl] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const loadFlowData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Sem formId = usar flow.json padrão
+        if (!formId) {
+          console.log('[Form] Carregando flow.json padrão');
+          const response = await fetch("/flow.json");
+          if (!response.ok) throw new Error("Failed to load flow");
+          const data = await response.json();
+          setFlowData(data);
+          setLoading(false);
+          return;
+        }
+
+        // CORREÇÃO: Aguardar hidratação antes de buscar no store
+        if (!hasHydrated) {
+          console.log('[Form] Aguardando hidratação do store...');
+          return; // Sai e aguarda próxima execução quando hasHydrated mudar
+        }
+
+        // Com formId = carregar do formStorage
+        console.log('[Form] ========================================');
+        console.log('[Form] Iniciando carregamento do fluxo');
+        console.log('[Form] ID recebido da URL:', formId);
+        console.log('[Form] Tipo do ID:', typeof formId);
+        console.log('[Form] ========================================');
+        
+        // 1. Buscar metadados no formStorage
+        const meta = getFormMeta(formId);
+        
+        if (!meta) {
+          console.warn('[Form] ⚠️ Meta não encontrado no formStorage, tentando fallback para Zustand store...');
+          
+          // FALLBACK: Buscar no store antigo (para fluxos criados antes da migração)
+          const flow = getFlow(formId);
+          
+          if (!flow) {
+            console.error('[Form] ❌ Fluxo não encontrado nem no storage nem no store');
+            console.error('[Form] IDs disponíveis no store:', useFlowStore.getState().flows.map(f => f.id));
+            
+            // Listar o que tem no localStorage
+            const allKeys = Object.keys(localStorage).filter(k => k.startsWith('typeflow:'));
+            console.error('[Form] Chaves no localStorage:', allKeys);
+            
+            setError("not-found");
+            setLoading(false);
+            return;
+          }
+          
+          console.log('[Form] ✓ Fluxo encontrado no store (modo fallback):', flow.name);
+          
+          if (!flow.isPublished) {
+            console.log('[Form] Formulário não publicado');
+            setError("not-published");
+            setLoading(false);
+            return;
+          }
+          
+          // Usar data diretamente do store
+          console.log('[Form] ✓ Usando dados do store:', {
+            groups: flow.data.groups?.length || 0,
+            variables: flow.data.variables?.length || 0
+          });
+          
+          setFlowData(flow.data);
+          setLoading(false);
+          return;
+        }
+
+        console.log('[Form] ✓ Meta encontrado no formStorage:', {
+          id: meta.id,
+          name: meta.name,
+          filePath: meta.filePath,
+          isPublished: meta.isPublished
+        });
+
+        // 2. Checar publicação
+        if (!meta.isPublished) {
+          console.log('[Form] Formulário não publicado');
+          setError("not-published");
+          setLoading(false);
+          return;
+        }
+
+        // 3. Carregar conteúdo do arquivo
+        const fileEntry = getFileEntry(formId);
+        if (!fileEntry) {
+          console.error('[Form] ❌ Arquivo não encontrado no storage:', formId);
+          setError("not-found");
+          setLoading(false);
+          return;
+        }
+
+        console.log('[Form] ✓ Arquivo encontrado:', {
+          mimeType: fileEntry.mimeType,
+          fileName: fileEntry.originalFileName,
+          sizeBase64: fileEntry.contentBase64.length
+        });
+
+        // 4. Decodificar e parsear
+        const contentString = base64ToString(fileEntry.contentBase64);
+        const ext = fileEntry.originalFileName.toLowerCase();
+        
+        console.log('[Form] Parseando arquivo:', {
+          extensão: ext,
+          tamanhoConteúdo: contentString.length
+        });
+        
+        const parseResult = await parseFlowString(
+          contentString,
+          ext.endsWith('.js') ? 'js' : 'json'
+        );
+
+        if (!parseResult.data) {
+          console.error('[Form] ❌ Erro ao parsear arquivo');
+          setError("load-error");
+          setLoading(false);
+          return;
+        }
+
+        console.log('[Form] ✓ Fluxo parseado com sucesso:', {
+          groups: parseResult.data.groups?.length || 0,
+          variables: parseResult.data.variables?.length || 0
+        });
+
+        setFlowData(parseResult.data);
+      } catch (err) {
+        console.error("[Form] ❌ Erro fatal ao carregar flow:", err);
+        setError("load-error");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFlowData();
+  }, [formId, getFlow, hasHydrated]);
+
+  const {
+    currentBlock,
+    goToNextBlock,
+    addResponse,
+    responses,
+    resetFlow,
+    isFlowComplete,
+    interpolateText
+  } = useFlowNavigation(flowData);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isTyping]);
+
+  const extractTextFromBlock = (block: TextBlock): string => {
+    const text = block.content.richText
+      .map(rt => rt.children.map(c => c.text).join(' '))
+      .join('\n');
+    return interpolateText(text);
+  };
+
+  const showBotMessage = async (richText?: RichTextElement[], image?: string) => {
+    setIsTyping(true);
+    await new Promise(resolve => setTimeout(resolve, 800));
+    setIsTyping(false);
+    
+    if (richText) {
+      // Interpolate variables in rich text
+      const interpolatedRichText = richText.map(element => ({
+        ...element,
+        children: element.children.map(child => ({
+          ...child,
+          text: interpolateText(child.text)
+        }))
+      }));
+      setMessages(prev => [...prev, { richText: interpolatedRichText, isBot: true, image }]);
+    }
+  };
+
+  const processBlock = async () => {
+    if (!currentBlock) {
+      if (isFlowComplete()) {
+        setScreen('summary');
+      }
+      return;
+    }
+
+    setWaitingForInput(false);
+
+    switch (currentBlock.type) {
+      case 'text':
+        const textBlock = currentBlock as TextBlock;
+        await showBotMessage(textBlock.content.richText);
+        setTimeout(() => goToNextBlock(), 1500);
+        break;
+
+      case 'image':
+        const imageBlock = currentBlock as ImageBlockType;
+        setMessages(prev => [...prev, { 
+          content: '', 
+          isBot: true, 
+          image: imageBlock.content.url 
+        }]);
+        setTimeout(() => goToNextBlock(), 1000);
+        break;
+
+      case 'text input':
+      case 'number input':
+        setWaitingForInput(true);
+        break;
+
+      case 'choice input':
+        setWaitingForInput(true);
+        break;
+
+      case 'file upload':
+        setWaitingForInput(true);
+        break;
+
+      case 'rating':
+        setWaitingForInput(true);
+        break;
+
+      case 'Redirect':
+        const redirectBlock = currentBlock as RedirectBlock;
+        setRedirectUrl(redirectBlock.options.url);
+        setScreen('redirect');
+        break;
+
+      case 'Set variable':
+        // Handle set variable silently and continue
+        goToNextBlock();
+        break;
+
+      default:
+        console.log('Tipo de bloco não implementado:', (currentBlock as any).type);
+        goToNextBlock();
+        break;
+    }
+  };
+
+  useEffect(() => {
+    if (screen === 'chat' && currentBlock) {
+      processBlock();
+    }
+  }, [currentBlock, screen]);
+
+  const handleStart = () => {
+    setScreen('chat');
+    resetFlow();
+    setMessages([]);
+  };
+
+  const handleTextInput = (value: string) => {
+    const inputBlock = currentBlock as TextInputBlock | NumberInputBlock;
+    setMessages(prev => [...prev, { content: value, isBot: false }]);
+    addResponse(inputBlock.id, value, inputBlock.options.variableId);
+    setWaitingForInput(false);
+    setTimeout(() => goToNextBlock(), 500);
+  };
+
+  const handleFileUpload = (files: string[]) => {
+    const fileBlock = currentBlock as FileUploadBlock;
+    setMessages(prev => [...prev, { 
+      content: `${files.length} foto(s) enviada(s)`, 
+      isBot: false 
+    }]);
+    addResponse(fileBlock.id, files, fileBlock.options.variableId);
+    setWaitingForInput(false);
+    setTimeout(() => goToNextBlock(), 500);
+  };
+
+  const handleRatingSelect = (value: number) => {
+    const ratingBlock = currentBlock as RatingBlock;
+    setMessages(prev => [...prev, { content: value.toString(), isBot: false }]);
+    addResponse(ratingBlock.id, value.toString(), ratingBlock.options.variableId);
+    setWaitingForInput(false);
+    setTimeout(() => goToNextBlock(), 500);
+  };
+
+  const handleChoiceInput = (choice: string, itemId?: string) => {
+    const choiceBlock = currentBlock as ChoiceInputBlock;
+    setMessages(prev => [...prev, { content: choice, isBot: false }]);
+    addResponse(choiceBlock.id, choice);
+    setWaitingForInput(false);
+    setTimeout(() => {
+      const item = choiceBlock.items.find(i => i.id === itemId);
+      goToNextBlock(item?.outgoingEdgeId);
+    }, 500);
+  };
+
+  const handleSummarySubmit = () => {
+    setScreen('thank-you');
+    toast.success("Suas respostas foram enviadas!");
+  };
+
+  const handleRestart = () => {
+    setScreen('welcome');
+    resetFlow();
+    setMessages([]);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background to-accent flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Carregando formulário...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error === "not-found") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-accent">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center space-y-4">
+            <div className="w-16 h-16 mx-auto bg-destructive/10 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold">Formulário não encontrado</h2>
+            <p className="text-muted-foreground">
+              Este formulário não existe ou foi excluído.
+            </p>
+            {formId && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-mono bg-muted p-2 rounded">
+                  ID buscado: {formId}
+                </p>
+                {import.meta.env.DEV && (
+                  <p className="text-xs text-muted-foreground">
+                    💡 Abra o console e digite <code className="bg-muted px-1 rounded">debugStorage()</code> para diagnosticar
+                  </p>
+                )}
+              </div>
+            )}
+            <Button onClick={() => navigate("/admin/dashboard")}>
+              Voltar ao Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error === "not-published") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-accent">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center space-y-4">
+            <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold">Formulário não publicado</h2>
+            <p className="text-muted-foreground">Este formulário não está disponível no momento.</p>
+            <Button onClick={() => navigate("/")}>Voltar ao início</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-accent">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center space-y-4">
+            <div className="w-16 h-16 mx-auto bg-destructive/10 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold">Erro ao Carregar</h2>
+            <p className="text-muted-foreground">Erro ao carregar o formulário. Tente novamente.</p>
+            <Button onClick={() => window.location.reload()}>Tentar Novamente</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background to-accent">
+      <AnimatePresence mode="wait">
+        {screen === 'welcome' && (
+          <WelcomeScreen 
+            formName={flowData.name} 
+            onStart={handleStart}
+          />
+        )}
+
+        {screen === 'chat' && (
+          <div className="max-w-3xl mx-auto min-h-screen flex flex-col">
+            <div className="flex-1 overflow-y-auto p-4 pt-20 pb-32">
+              {messages.map((msg, idx) => (
+                <div key={idx}>
+                  {msg.image && !msg.richText && !msg.content ? (
+                    <ImageBlock url={msg.image} />
+                  ) : (
+                    <ChatMessage
+                      content={msg.content}
+                      richText={msg.richText}
+                      isBot={msg.isBot}
+                    />
+                  )}
+                </div>
+              ))}
+              {isTyping && <ChatMessage isBot isTyping />}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent p-4 pb-6">
+              <div className="max-w-3xl mx-auto">
+                {waitingForInput && currentBlock?.type === 'text input' && (
+                  <ChatInput
+                    onSubmit={handleTextInput}
+                    placeholder={(currentBlock as TextInputBlock).options.labels.placeholder}
+                    buttonLabel={(currentBlock as TextInputBlock).options.labels.button}
+                    isLong={(currentBlock as TextInputBlock).options.isLong}
+                  />
+                )}
+
+                {waitingForInput && currentBlock?.type === 'number input' && (
+                  <NumberInput
+                    onSubmit={handleTextInput}
+                    placeholder={(currentBlock as NumberInputBlock).options.labels.placeholder}
+                    buttonLabel={(currentBlock as NumberInputBlock).options.labels.button}
+                  />
+                )}
+
+                {waitingForInput && currentBlock?.type === 'file upload' && (
+                  <FileUploadInput
+                    onSubmit={handleFileUpload}
+                    placeholder={(currentBlock as FileUploadBlock).options.labels.placeholder}
+                    buttonLabel={(currentBlock as FileUploadBlock).options.labels.button}
+                    isMultiple={(currentBlock as FileUploadBlock).options.isMultipleAllowed}
+                  />
+                )}
+
+                {waitingForInput && currentBlock?.type === 'rating' && (
+                  <RatingInput
+                    length={(currentBlock as RatingBlock).options.length}
+                    leftLabel={(currentBlock as RatingBlock).options.labels?.left}
+                    rightLabel={(currentBlock as RatingBlock).options.labels?.right}
+                    onSelect={handleRatingSelect}
+                  />
+                )}
+
+                {waitingForInput && currentBlock?.type === 'choice input' && (
+                  <div className="space-y-2">
+                    {(currentBlock as ChoiceInputBlock).items.map((item) => (
+                      <ChoiceButton
+                        key={item.id}
+                        label={interpolateText(item.content || '')}
+                        onClick={() => handleChoiceInput(item.content || '', item.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {screen === 'summary' && (
+          <SummaryScreen
+            responses={responses}
+            onSubmit={handleSummarySubmit}
+          />
+        )}
+
+        {screen === 'thank-you' && (
+          <ThankYouScreen
+            message="Obrigado por completar o check-in! Em breve você receberá seu feedback personalizado."
+            onRestart={handleRestart}
+          />
+        )}
+
+        {screen === 'redirect' && (
+          <RedirectScreen
+            url={redirectUrl}
+            message="Redirecionando..."
+            autoRedirect
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export default Index;
