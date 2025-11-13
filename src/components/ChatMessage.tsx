@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { parseRichText } from "@/utils/richTextParser";
 import { RichTextElement } from "@/types/flow";
+import { useThemeStore } from "@/stores/themeStore";
 
 interface ChatMessageProps {
   content?: string;
@@ -18,6 +19,18 @@ export const ChatMessage = ({
   isTyping = false, 
   image 
 }: ChatMessageProps) => {
+  const { theme } = useThemeStore();
+
+  const getShadowClass = () => {
+    switch (theme.shadowIntensity) {
+      case 'none': return '';
+      case 'sm': return 'shadow-sm';
+      case 'md': return 'shadow-md';
+      case 'lg': return 'shadow-lg';
+      default: return 'shadow-md';
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -28,34 +41,43 @@ export const ChatMessage = ({
         isBot ? "justify-start" : "justify-end"
       )}
     >
-      <div className={cn(
-        "max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-3 shadow-sm",
-        isBot 
-          ? "bg-card text-card-foreground border border-border" 
-          : "bg-primary text-primary-foreground"
-      )}>
+      <div 
+        className={cn(
+          "max-w-[85%] md:max-w-[70%] px-4 py-3",
+          getShadowClass()
+        )}
+        style={{
+          backgroundColor: isBot ? theme.chatBubbleBot : theme.chatBubbleUser,
+          color: isBot ? theme.textColor : '#ffffff',
+          borderRadius: theme.borderRadius
+        }}
+      >
         {image && (
           <img 
             src={image} 
             alt="Context" 
-            className="w-full rounded-xl mb-2"
+            className="w-full mb-2"
+            style={{ borderRadius: theme.borderRadius }}
           />
         )}
         
         {isTyping ? (
           <div className="flex space-x-1 py-1">
             <motion.div
-              className="w-2 h-2 bg-muted-foreground rounded-full"
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: theme.textColor, opacity: 0.5 }}
               animate={{ scale: [1, 1.3, 1] }}
               transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
             />
             <motion.div
-              className="w-2 h-2 bg-muted-foreground rounded-full"
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: theme.textColor, opacity: 0.5 }}
               animate={{ scale: [1, 1.3, 1] }}
               transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
             />
             <motion.div
-              className="w-2 h-2 bg-muted-foreground rounded-full"
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: theme.textColor, opacity: 0.5 }}
               animate={{ scale: [1, 1.3, 1] }}
               transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
             />

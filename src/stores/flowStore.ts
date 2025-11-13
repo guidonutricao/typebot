@@ -1,317 +1,241 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { FlowData } from '@/types/flow';
+import * as supabaseStorage from '@/utils/supabaseStorage';
 
 export interface Flow {
   id: string;
   name: string;
+  slug?: string;
   data: FlowData;
   createdAt: string;
   updatedAt: string;
   isPublished: boolean;
-  filePath?: string;
-  mimeType?: string;
-  originalFileName?: string;
+  settings?: {
+    theme?: string;
+    customColors?: Record<string, string>;
+    thankYouMessage?: string;
+    redirectUrl?: string;
+  };
 }
 
 interface FlowStore {
   flows: Flow[];
   activeFlowId: string | null;
-  _hasHydrated: boolean;
+  isLoading: boolean;
   
-  addFlow: (name: string, data: FlowData) => string;
-  addFlowRecord: (meta: any, data: FlowData | null) => string;
-  updateFlow: (id: string, data: FlowData) => void;
-  updateFlowFile: (id: string, meta: any, data: FlowData | null) => void;
-  updateFlowName: (id: string, name: string) => void;
-  deleteFlow: (id: string) => void;
-  duplicateFlow: (id: string) => string;
+  loadFlows: () => Promise<void>;
+  addFlow: (name: string, data: FlowData, slug?: string) => Promise<string>;
+  updateFlow: (id: string, data: FlowData) => Promise<void>;
+  updateFlowName: (id: string, name: string) => Promise<void>;
+  updateFlowSlug: (id: string, slug: string) => Promise<void>;
+  deleteFlow: (id: string) => Promise<void>;
+  duplicateFlow: (id: string) => Promise<string>;
   getFlow: (id: string) => Flow | undefined;
+  getFlowBySlug: (slug: string) => Flow | undefined;
   setActiveFlow: (id: string) => void;
-  togglePublish: (id: string) => void;
-  setHasHydrated: (state: boolean) => void;
+  togglePublish: (id: string) => Promise<void>;
+  getPublicUrl: (id: string) => string;
 }
 
 const generateId = () => {
-  return 'flow_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  return 'flow_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
 };
 
-export const useFlowStore = create<FlowStore>()(
-  persist(
-    (set, get) => ({
-      flows: [],
-      activeFlowId: null,
-      _hasHydrated: false,
+export const useFlowStore = create<FlowStore>((set, get) => ({
+  flows: [],
+  activeFlowId: null,
+  isLoading: false,
 
-      addFlow: (name: string, data: FlowData) => {
-        const id = generateId();
-        const newFlow: Flow = {
-          id,
-          name,
-          data,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          isPublished: false,
-        };
-        
-        set((state) => ({
-          flows: [...state.flows, newFlow],
-          activeFlowId: id,
-        }));
-        
-        return id;
-      },
-
-      addFlowRecord: (meta: any, data: FlowData | null) => {
-        const newFlow: Flow = {
-          id: meta.id,
-          name: meta.name,
-          data: data || ({ groups: [], edges: [], variables: [] } as FlowData),
-          createdAt: meta.createdAt,
-          updatedAt: meta.updatedAt,
-          isPublished: meta.isPublished,
-          filePath: meta.filePath,
-          mimeType: meta.mimeType,
-          originalFileName: meta.originalFileName,
-        };
-        
-        set((state) => ({
-          flows: [...state.flows, newFlow],
-          activeFlowId: meta.id,
-        }));
-        
-        console.log('[FlowStore] Fluxo registrado:', {
-          id: meta.id,
-          name: meta.name,
-          filePath: meta.filePath,
-        });
-        
-        return meta.id;
-      },
-
-      updateFlow: (id: string, data: FlowData) => {
-        set((state) => ({
-          flows: state.flows.map((flow) =>
-            flow.id === id
-              ? { ...flow, data, updatedAt: new Date().toISOString() }
-              : flow
-          ),
-        }));
-      },
-
-      updateFlowFile: (id: string, meta: any, data: FlowData | null) => {
-        set((state) => ({
-          flows: state.flows.map((flow) =>
-            flow.id === id
-              ? {
-                  ...flow,
-                  data: data || flow.data,
-                  filePath: meta.filePath,
-                  mimeType: meta.mimeType,
-                  originalFileName: meta.originalFileName,
-                  updatedAt: meta.updatedAt,
-                }
-              : flow
-          ),
-        }));
-        
-        console.log('[FlowStore] Arquivo do fluxo atualizado:', {
-          id,
-          filePath: meta.filePath,
-        });
-      },
-
-      updateFlowName: (id: string, name: string) => {
-        set((state) => ({
-          flows: state.flows.map((flow) =>
-            flow.id === id
-              ? { ...flow, name, updatedAt: new Date().toISOString() }
-              : flow
-          ),
-        }));
-      },
-
-      deleteFlow: (id: string) => {
-        set((state) => ({
-          flows: state.flows.filter((flow) => flow.id !== id),
-          activeFlowId: state.activeFlowId === id ? null : state.activeFlowId,
-        }));
-      },
-
-      duplicateFlow: (id: string) => {
-        const flow = get().flows.find((f) => f.id === id);
-        if (!flow) return '';
-        
-        const newId = generateId();
-        const duplicatedFlow: Flow = {
-          ...flow,
-          id: newId,
-          name: `${flow.name} (cópia)`,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        
-        set((state) => ({
-          flows: [...state.flows, duplicatedFlow],
-        }));
-        
-        return newId;
-      },
-
-      getFlow: (id: string) => {
-        const flow = get().flows.find((flow) => flow.id === id);
-        console.log('[FlowStore] getFlow chamado', {
-          requestedId: id,
-          found: !!flow,
-          totalFlows: get().flows.length,
-          allIds: get().flows.map(f => f.id)
-        });
-        return flow;
-      },
-
-      setActiveFlow: (id: string) => {
-        set({ activeFlowId: id });
-      },
-
-      togglePublish: (id: string) => {
-        const flow = get().flows.find((f) => f.id === id);
-        const newPublishStatus = flow ? !flow.isPublished : false;
-        
-        console.log('[FlowStore] Alternando publicação:', {
-          id,
-          novoStatus: newPublishStatus,
-          flowEncontrado: !!flow
-        });
-        
-        set((state) => ({
-          flows: state.flows.map((flow) =>
-            flow.id === id
-              ? { ...flow, isPublished: newPublishStatus, updatedAt: new Date().toISOString() }
-              : flow
-          ),
-        }));
-        
-        // Sincronizar com FormStorage
-        if (typeof window !== 'undefined') {
-          import('@/utils/formStorage').then(({ updatePublishStatus, getFormMeta }) => {
-            const meta = getFormMeta(id);
-            if (!meta) {
-              console.error('[FlowStore] ⚠️ ATENÇÃO: Tentando publicar fluxo que não existe no formStorage!');
-              console.error('[FlowStore] ID:', id);
-              console.error('[FlowStore] Este fluxo precisa ser migrado. Recarregue a página para forçar migração.');
-            } else {
-              updatePublishStatus(id, newPublishStatus);
-              console.log('[FlowStore] ✓ Status sincronizado com formStorage');
-            }
-          });
-        }
-      },
-
-      setHasHydrated: (state: boolean) => {
-        set({ _hasHydrated: state });
-      },
-    }),
-    {
-      name: 'typeflow-flows',
-      onRehydrateStorage: () => {
-        console.log('[FlowStore] Iniciando hidratação do localStorage...');
-        return async (state) => {
-          if (state) {
-            // Validar estrutura dos fluxos e remover inválidos
-            const validFlows = state.flows.filter(flow => {
-              const isValid = flow.id && flow.name && flow.data;
-              if (!isValid) {
-                console.warn('[FlowStore] Fluxo inválido removido:', flow);
-              }
-              return isValid;
-            });
-            
-            if (validFlows.length !== state.flows.length) {
-              console.log('[FlowStore] Fluxos inválidos foram removidos');
-              state.flows = validFlows;
-            }
-            
-            // Migração: adicionar filePath aos fluxos antigos e sincronizar com formStorage
-            const { saveFormFile, updatePublishStatus } = await import('@/utils/formStorage');
-            let migrated = false;
-            
-            const migrationErrors: string[] = [];
-            
-            for (const flow of state.flows) {
-              if (!flow.filePath && flow.data) {
-                console.log('[FlowStore] ⚙️ Migrando fluxo antigo para formStorage:', {
-                  id: flow.id,
-                  name: flow.name,
-                  isPublished: flow.isPublished
-                });
-                
-                let retries = 3;
-                let migrationSuccess = false;
-                
-                while (retries > 0 && !migrationSuccess) {
-                  try {
-                    // Criar arquivo JSON a partir de flow.data
-                    const jsonContent = JSON.stringify(flow.data, null, 2);
-                    const blob = new Blob([jsonContent], { type: 'application/json' });
-                    const file = new File([blob], `${flow.id}.json`, { type: 'application/json' });
-                    
-                    // Salvar no FormStorage com o mesmo ID
-                    const meta = await saveFormFile(file, flow.name, flow.id);
-                    
-                    // Sincronizar status de publicação
-                    if (flow.isPublished) {
-                      updatePublishStatus(flow.id, true);
-                    }
-                    
-                    // Atualizar flow com filePath
-                    flow.filePath = meta.filePath;
-                    flow.mimeType = meta.mimeType;
-                    flow.originalFileName = meta.originalFileName;
-                    
-                    migrated = true;
-                    migrationSuccess = true;
-                    console.log('[FlowStore] ✓ Fluxo migrado com sucesso:', {
-                      id: flow.id,
-                      filePath: meta.filePath,
-                      isPublished: flow.isPublished
-                    });
-                  } catch (error) {
-                    retries--;
-                    console.error(`[FlowStore] ❌ Erro ao migrar fluxo (tentativas restantes: ${retries}):`, flow.id, error);
-                    
-                    if (retries === 0) {
-                      const errorMsg = `Falha ao migrar "${flow.name}" (${flow.id})`;
-                      migrationErrors.push(errorMsg);
-                      console.error('[FlowStore] ❌ Migração falhou após todas as tentativas:', errorMsg);
-                    } else {
-                      // Aguarda antes de tentar novamente
-                      await new Promise(resolve => setTimeout(resolve, 500));
-                    }
-                  }
-                }
-              }
-            }
-            
-            // Notificar usuário sobre erros de migração
-            if (migrationErrors.length > 0) {
-              console.error('[FlowStore] ⚠️ ATENÇÃO: Alguns fluxos não puderam ser migrados:', migrationErrors);
-              // Você pode adicionar uma notificação toast aqui se desejar
-            }
-            
-            if (migrated) {
-              console.log('[FlowStore] ✓ Migração completa, state atualizado');
-            }
-            
-            console.log('[FlowStore] Hidratação completa!', {
-              totalFlows: state.flows.length,
-              flowIds: state.flows.map(f => f.id),
-              migrated,
-            });
-            
-            state.setHasHydrated(true);
-          }
-        };
-      },
+  loadFlows: async () => {
+    set({ isLoading: true });
+    try {
+      const flowsData = await supabaseStorage.listFlows();
+      const flows: Flow[] = flowsData.map(f => ({
+        id: f.id,
+        name: f.name,
+        slug: f.slug,
+        data: f.data,
+        createdAt: f.createdAt,
+        updatedAt: f.updatedAt,
+        isPublished: f.isPublished,
+        settings: f.settings,
+      }));
+      set({ flows, isLoading: false });
+    } catch (error) {
+      console.error('[FlowStore] Erro ao carregar fluxos:', error);
+      set({ isLoading: false });
     }
-  )
-);
+  },
+
+  addFlow: async (name: string, data: FlowData, slug?: string) => {
+    try {
+      const meta = await supabaseStorage.saveFlow(name, data, undefined, slug);
+      
+      const newFlow: Flow = {
+        id: meta.id,
+        name: meta.name,
+        slug: meta.slug,
+        data: meta.data,
+        createdAt: meta.createdAt,
+        updatedAt: meta.updatedAt,
+        isPublished: meta.isPublished,
+        settings: meta.settings,
+      };
+      
+      set((state) => ({
+        flows: [...state.flows, newFlow],
+        activeFlowId: meta.id,
+      }));
+      
+      console.log('[FlowStore] Novo fluxo criado:', { id: meta.id, name, slug: meta.slug });
+      return meta.id;
+    } catch (error) {
+      console.error('[FlowStore] Erro ao criar fluxo:', error);
+      throw error;
+    }
+  },
+
+  updateFlow: async (id: string, data: FlowData) => {
+    try {
+      await supabaseStorage.updateFlowData(id, data);
+      
+      set((state) => ({
+        flows: state.flows.map((flow) =>
+          flow.id === id
+            ? { ...flow, data, updatedAt: new Date().toISOString() }
+            : flow
+        ),
+      }));
+    } catch (error) {
+      console.error('[FlowStore] Erro ao atualizar fluxo:', error);
+      throw error;
+    }
+  },
+
+  updateFlowName: async (id: string, name: string) => {
+    try {
+      await supabaseStorage.updateFlowName(id, name);
+      
+      set((state) => ({
+        flows: state.flows.map((flow) =>
+          flow.id === id
+            ? { ...flow, name, updatedAt: new Date().toISOString() }
+            : flow
+        ),
+      }));
+    } catch (error) {
+      console.error('[FlowStore] Erro ao atualizar nome:', error);
+      throw error;
+    }
+  },
+
+  updateFlowSlug: async (id: string, slug: string) => {
+    try {
+      await supabaseStorage.updateFlowSlug(id, slug);
+      
+      set((state) => ({
+        flows: state.flows.map((flow) =>
+          flow.id === id
+            ? { ...flow, slug, updatedAt: new Date().toISOString() }
+            : flow
+        ),
+      }));
+      
+      console.log('[FlowStore] Slug atualizado:', { id, slug });
+    } catch (error) {
+      console.error('[FlowStore] Erro ao atualizar slug:', error);
+      throw error;
+    }
+  },
+
+  deleteFlow: async (id: string) => {
+    try {
+      await supabaseStorage.deleteFlow(id);
+      
+      set((state) => ({
+        flows: state.flows.filter((flow) => flow.id !== id),
+        activeFlowId: state.activeFlowId === id ? null : state.activeFlowId,
+      }));
+    } catch (error) {
+      console.error('[FlowStore] Erro ao deletar fluxo:', error);
+      throw error;
+    }
+  },
+
+  duplicateFlow: async (id: string) => {
+    const flow = get().flows.find((f) => f.id === id);
+    if (!flow) return '';
+    
+    try {
+      const newId = generateId();
+      const meta = await supabaseStorage.saveFlow(
+        `${flow.name} (cópia)`,
+        flow.data,
+        newId
+      );
+      
+      const duplicatedFlow: Flow = {
+        id: meta.id,
+        name: meta.name,
+        slug: meta.slug,
+        data: meta.data,
+        createdAt: meta.createdAt,
+        updatedAt: meta.updatedAt,
+        isPublished: false,
+        settings: flow.settings,
+      };
+      
+      set((state) => ({
+        flows: [...state.flows, duplicatedFlow],
+      }));
+      
+      return meta.id;
+    } catch (error) {
+      console.error('[FlowStore] Erro ao duplicar fluxo:', error);
+      return '';
+    }
+  },
+
+  getFlow: (id: string) => {
+    return get().flows.find((flow) => flow.id === id);
+  },
+
+  getFlowBySlug: (slug: string) => {
+    return get().flows.find((flow) => flow.slug === slug);
+  },
+
+  setActiveFlow: (id: string) => {
+    set({ activeFlowId: id });
+  },
+
+  getPublicUrl: (id: string) => {
+    const baseUrl = typeof window !== 'undefined' 
+      ? window.location.origin 
+      : import.meta.env.VITE_BASE_URL || 'http://localhost:8080';
+    return `${baseUrl}/forms/${id}`;
+  },
+
+  togglePublish: async (id: string) => {
+    const flow = get().flows.find((f) => f.id === id);
+    if (!flow) return;
+    
+    const newPublishStatus = !flow.isPublished;
+    
+    try {
+      await supabaseStorage.updatePublishStatus(id, newPublishStatus);
+      
+      set((state) => ({
+        flows: state.flows.map((flow) =>
+          flow.id === id
+            ? { ...flow, isPublished: newPublishStatus, updatedAt: new Date().toISOString() }
+            : flow
+        ),
+      }));
+      
+      console.log('[FlowStore] Status de publicação atualizado:', { id, isPublished: newPublishStatus });
+    } catch (error) {
+      console.error('[FlowStore] Erro ao atualizar publicação:', error);
+      throw error;
+    }
+  },
+}));

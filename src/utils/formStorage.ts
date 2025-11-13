@@ -6,6 +6,7 @@
 export interface FormMeta {
   id: string;
   name: string;
+  slug?: string;
   filePath: string;
   createdAt: string;
   updatedAt: string;
@@ -98,7 +99,8 @@ export const base64ToString = (base64: string): string => {
 export const saveFormFile = async (
   file: File,
   name: string,
-  existingId?: string
+  existingId?: string,
+  slug?: string
 ): Promise<FormMeta> => {
   try {
     const id = existingId || generateId();
@@ -115,6 +117,7 @@ export const saveFormFile = async (
     const meta: FormMeta = {
       id,
       name,
+      slug,
       filePath,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -287,4 +290,28 @@ export const updateFormName = (id: string, name: string): boolean => {
     console.error('[FormStorage] Erro ao atualizar nome:', error);
     return false;
   }
+};
+
+// Atualiza slug do formulário
+export const updateFormSlug = (id: string, slug: string): boolean => {
+  try {
+    const meta = getFormMeta(id);
+    if (!meta) return false;
+
+    meta.slug = slug;
+    meta.updatedAt = new Date().toISOString();
+
+    localStorage.setItem(`${STORAGE_PREFIX}:meta:${id}`, JSON.stringify(meta));
+    console.log('[FormStorage] Slug atualizado:', { id, slug });
+    return true;
+  } catch (error) {
+    console.error('[FormStorage] Erro ao atualizar slug:', error);
+    return false;
+  }
+};
+
+// Busca formulário por slug
+export const getFormBySlug = (slug: string): FormMeta | null => {
+  const forms = listForms();
+  return forms.find(f => f.slug === slug) || null;
 };

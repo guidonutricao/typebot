@@ -1,4 +1,4 @@
-# Customização de Tema - Novas Funcionalidades
+# Customização de Tema - Implementação Completa
 
 ## 🎨 Novas Opções Adicionadas
 
@@ -30,12 +30,38 @@ O preview agora inclui um chat funcional em tempo real que mostra:
 2. Ajuste as cores, fontes e estilos no painel esquerdo
 3. Veja as mudanças aplicadas instantaneamente no preview do chat à direita
 4. Teste o chat enviando mensagens de exemplo
-5. Quando estiver satisfeito, as configurações são salvas automaticamente
+5. Clique em **"Salvar Alterações"** para confirmar
+6. As configurações são aplicadas automaticamente em todos os formulários
 
 ## 🔄 Resetar Configurações
 
-Use o botão "Resetar para Padrão" para voltar às configurações originais.
+Use o botão "Resetar" para voltar às configurações originais.
 
 ## 📱 Layout Responsivo
 
 O preview fica fixo (sticky) no scroll em telas grandes para facilitar a visualização enquanto você ajusta as configurações.
+
+## ✅ Componentes Atualizados
+
+As customizações do tema são aplicadas automaticamente em:
+
+### Página do Formulário (Form.tsx)
+- Background e fonte personalizados
+- Telas de loading com cores do tema
+- Telas de erro estilizadas
+- Espaçamento configurável entre mensagens
+
+### Componentes de Chat
+- **ChatMessage**: Bolhas com cores personalizadas, sombras e bordas arredondadas
+- **ChatInput**: Input e botão de envio com estilo do tema
+- **ChoiceButton**: Botões de escolha com hover e cores personalizadas
+
+### Tela de Boas-vindas (WelcomeScreen)
+- Ícone com cor primária
+- Título com cor do tema
+- Botão "Começar" estilizado
+- Sombras e bordas configuráveis
+
+## 🎨 Persistência
+
+Todas as configurações são salvas automaticamente no localStorage através do Zustand com middleware de persistência. As mudanças são aplicadas imediatamente em todos os formulários publicados.

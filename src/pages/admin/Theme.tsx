@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { useThemeStore } from "@/stores/themeStore";
 import { toast } from "sonner";
-import { Send, Bot, User } from "lucide-react";
+import { Send, Bot, User, Save, RotateCcw } from "lucide-react";
 import { useState } from "react";
 
 export default function Theme() {
@@ -17,6 +17,12 @@ export default function Theme() {
     { type: 'bot', text: 'Claro! Temos várias opções disponíveis. Qual categoria te interessa?' },
   ]);
   const [inputMessage, setInputMessage] = useState('');
+
+  const handleSave = () => {
+    toast.success("Alterações salvas com sucesso!", {
+      description: "Seu tema personalizado foi salvo e será aplicado em todo o sistema."
+    });
+  };
 
   const handleReset = () => {
     resetTheme();
@@ -286,9 +292,24 @@ export default function Theme() {
             </CardContent>
           </Card>
 
-          <Button onClick={handleReset} variant="outline" className="w-full">
-            Resetar para Padrão
-          </Button>
+          <div className="flex gap-3">
+            <Button 
+              onClick={handleSave} 
+              className="flex-1 gap-2"
+              style={{ backgroundColor: theme.primaryColor }}
+            >
+              <Save className="w-4 h-4" />
+              Salvar Alterações
+            </Button>
+            <Button 
+              onClick={handleReset} 
+              variant="outline" 
+              className="flex-1 gap-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Resetar
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-6 lg:sticky lg:top-6">

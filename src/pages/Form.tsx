@@ -13,6 +13,7 @@ import { FileUploadInput } from "@/components/blocks/FileUploadInput";
 import { RatingInput } from "@/components/blocks/RatingInput";
 import { useFlowNavigation } from "@/hooks/useFlowNavigation";
 import { useFlowStore } from "@/stores/flowStore";
+import { useThemeStore } from "@/stores/themeStore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { 
@@ -50,6 +51,7 @@ const Index = () => {
   const navigate = useNavigate();
   const getFlow = useFlowStore((state) => state.getFlow);
   const hasHydrated = useFlowStore((state) => state._hasHydrated);
+  const { theme } = useThemeStore();
   
   const [screen, setScreen] = useState<ScreenType>('welcome');
   const [flowData, setFlowData] = useState<FlowData | null>(null);
@@ -60,6 +62,34 @@ const Index = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const getShadowClass = () => {
+    switch (theme.shadowIntensity) {
+      case 'none': return '';
+      case 'sm': return 'shadow-sm';
+      case 'md': return 'shadow-md';
+      case 'lg': return 'shadow-lg';
+      default: return 'shadow-md';
+    }
+  };
+
+  const getSpacingClass = () => {
+    switch (theme.spacing) {
+      case 'compact': return 'space-y-2';
+      case 'normal': return 'space-y-4';
+      case 'relaxed': return 'space-y-6';
+      default: return 'space-y-4';
+    }
+  };
+
+  const getButtonRadius = () => {
+    switch (theme.buttonStyle) {
+      case 'pill': return '9999px';
+      case 'square': return '0';
+      case 'rounded': return theme.borderRadius;
+      default: return theme.borderRadius;
+    }
+  };
 
   useEffect(() => {
     const loadFlowData = async () => {
@@ -369,10 +399,19 @@ const Index = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-accent flex items-center justify-center">
+      <div 
+        className="min-h-screen flex items-center justify-center"
+        style={{ 
+          backgroundColor: theme.backgroundColor,
+          fontFamily: theme.fontFamily 
+        }}
+      >
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Carregando formulário...</p>
+          <div 
+            className="w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-4" 
+            style={{ borderColor: `${theme.primaryColor}40`, borderTopColor: theme.primaryColor }}
+          />
+          <p style={{ color: theme.textColor }}>Carregando formulário...</p>
         </div>
       </div>
     );
@@ -380,31 +419,48 @@ const Index = () => {
 
   if (error === "not-found") {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-accent">
-        <Card className="max-w-md w-full">
+      <div 
+        className="min-h-screen flex items-center justify-center p-4"
+        style={{ 
+          backgroundColor: theme.backgroundColor,
+          fontFamily: theme.fontFamily 
+        }}
+      >
+        <Card 
+          className={`max-w-md w-full ${getShadowClass()}`}
+          style={{ borderRadius: theme.borderRadius }}
+        >
           <CardContent className="pt-6 text-center space-y-4">
             <div className="w-16 h-16 mx-auto bg-destructive/10 rounded-full flex items-center justify-center">
               <svg className="w-8 h-8 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold">Formulário não encontrado</h2>
-            <p className="text-muted-foreground">
+            <h2 className="text-xl font-semibold" style={{ color: theme.textColor }}>
+              Formulário não encontrado
+            </h2>
+            <p style={{ color: theme.textColor, opacity: 0.7 }}>
               Este formulário não existe ou foi excluído.
             </p>
             {formId && (
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground font-mono bg-muted p-2 rounded">
+                <p className="text-xs font-mono bg-muted p-2 rounded" style={{ color: theme.textColor, opacity: 0.7 }}>
                   ID buscado: {formId}
                 </p>
                 {import.meta.env.DEV && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs" style={{ color: theme.textColor, opacity: 0.7 }}>
                     💡 Abra o console e digite <code className="bg-muted px-1 rounded">debugStorage()</code> para diagnosticar
                   </p>
                 )}
               </div>
             )}
-            <Button onClick={() => navigate("/admin/dashboard")}>
+            <Button 
+              onClick={() => navigate("/admin/dashboard")}
+              style={{ 
+                backgroundColor: theme.primaryColor,
+                borderRadius: getButtonRadius()
+              }}
+            >
               Voltar ao Dashboard
             </Button>
           </CardContent>
@@ -415,17 +471,38 @@ const Index = () => {
 
   if (error === "not-published") {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-accent">
-        <Card className="max-w-md w-full">
+      <div 
+        className="min-h-screen flex items-center justify-center p-4"
+        style={{ 
+          backgroundColor: theme.backgroundColor,
+          fontFamily: theme.fontFamily 
+        }}
+      >
+        <Card 
+          className={`max-w-md w-full ${getShadowClass()}`}
+          style={{ borderRadius: theme.borderRadius }}
+        >
           <CardContent className="pt-6 text-center space-y-4">
             <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-8 h-8" style={{ color: theme.textColor, opacity: 0.5 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold">Formulário não publicado</h2>
-            <p className="text-muted-foreground">Este formulário não está disponível no momento.</p>
-            <Button onClick={() => navigate("/")}>Voltar ao início</Button>
+            <h2 className="text-xl font-semibold" style={{ color: theme.textColor }}>
+              Formulário não publicado
+            </h2>
+            <p style={{ color: theme.textColor, opacity: 0.7 }}>
+              Este formulário não está disponível no momento.
+            </p>
+            <Button 
+              onClick={() => navigate("/")}
+              style={{ 
+                backgroundColor: theme.primaryColor,
+                borderRadius: getButtonRadius()
+              }}
+            >
+              Voltar ao início
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -434,17 +511,38 @@ const Index = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-accent">
-        <Card className="max-w-md w-full">
+      <div 
+        className="min-h-screen flex items-center justify-center p-4"
+        style={{ 
+          backgroundColor: theme.backgroundColor,
+          fontFamily: theme.fontFamily 
+        }}
+      >
+        <Card 
+          className={`max-w-md w-full ${getShadowClass()}`}
+          style={{ borderRadius: theme.borderRadius }}
+        >
           <CardContent className="pt-6 text-center space-y-4">
             <div className="w-16 h-16 mx-auto bg-destructive/10 rounded-full flex items-center justify-center">
               <svg className="w-8 h-8 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold">Erro ao Carregar</h2>
-            <p className="text-muted-foreground">Erro ao carregar o formulário. Tente novamente.</p>
-            <Button onClick={() => window.location.reload()}>Tentar Novamente</Button>
+            <h2 className="text-xl font-semibold" style={{ color: theme.textColor }}>
+              Erro ao Carregar
+            </h2>
+            <p style={{ color: theme.textColor, opacity: 0.7 }}>
+              Erro ao carregar o formulário. Tente novamente.
+            </p>
+            <Button 
+              onClick={() => window.location.reload()}
+              style={{ 
+                backgroundColor: theme.primaryColor,
+                borderRadius: getButtonRadius()
+              }}
+            >
+              Tentar Novamente
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -452,7 +550,13 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-accent">
+    <div 
+      className="min-h-screen"
+      style={{ 
+        backgroundColor: theme.backgroundColor,
+        fontFamily: theme.fontFamily 
+      }}
+    >
       <AnimatePresence mode="wait">
         {screen === 'welcome' && (
           <WelcomeScreen 
@@ -463,7 +567,7 @@ const Index = () => {
 
         {screen === 'chat' && (
           <div className="max-w-3xl mx-auto min-h-screen flex flex-col">
-            <div className="flex-1 overflow-y-auto p-4 pt-20 pb-32">
+            <div className={`flex-1 overflow-y-auto p-4 pt-20 pb-32 ${getSpacingClass()}`}>
               {messages.map((msg, idx) => (
                 <div key={idx}>
                   {msg.image && !msg.richText && !msg.content ? (
@@ -481,7 +585,12 @@ const Index = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent p-4 pb-6">
+            <div 
+              className="fixed bottom-0 left-0 right-0 p-4 pb-6"
+              style={{
+                background: `linear-gradient(to top, ${theme.backgroundColor}, ${theme.backgroundColor}ee, transparent)`
+              }}
+            >
               <div className="max-w-3xl mx-auto">
                 {waitingForInput && currentBlock?.type === 'text input' && (
                   <ChatInput

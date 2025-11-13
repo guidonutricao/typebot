@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useThemeStore } from "@/stores/themeStore";
 
 interface ChatInputProps {
   onSubmit: (value: string) => void;
@@ -22,12 +23,22 @@ export const ChatInput = ({
   isLong = false
 }: ChatInputProps) => {
   const [value, setValue] = useState("");
+  const { theme } = useThemeStore();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (value.trim()) {
       onSubmit(value.trim());
       setValue("");
+    }
+  };
+
+  const getButtonRadius = () => {
+    switch (theme.buttonStyle) {
+      case 'pill': return '9999px';
+      case 'square': return '0';
+      case 'rounded': return theme.borderRadius;
+      default: return theme.borderRadius;
     }
   };
 
@@ -45,7 +56,12 @@ export const ChatInput = ({
           onChange={(e) => setValue(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          className="flex-1 rounded-2xl border-2 border-border focus-visible:ring-primary min-h-[100px] resize-none"
+          className="flex-1 border-2 min-h-[100px] resize-none"
+          style={{ 
+            borderRadius: theme.borderRadius,
+            fontFamily: theme.fontFamily,
+            borderColor: theme.secondaryColor + '40'
+          }}
         />
       ) : (
         <Input
@@ -53,14 +69,23 @@ export const ChatInput = ({
           onChange={(e) => setValue(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          className="flex-1 rounded-full border-2 border-border focus-visible:ring-primary"
+          className="flex-1 border-2"
+          style={{ 
+            borderRadius: getButtonRadius(),
+            fontFamily: theme.fontFamily,
+            borderColor: theme.secondaryColor + '40'
+          }}
         />
       )}
       <Button
         type="submit"
         disabled={disabled || !value.trim()}
         size="icon"
-        className="rounded-full h-10 w-10 shrink-0"
+        className="h-10 w-10 shrink-0"
+        style={{ 
+          backgroundColor: theme.primaryColor,
+          borderRadius: getButtonRadius()
+        }}
       >
         <Send className="h-4 w-4" />
       </Button>
@@ -75,6 +100,18 @@ interface ChoiceButtonProps {
 }
 
 export const ChoiceButton = ({ label, onClick, disabled }: ChoiceButtonProps) => {
+  const { theme } = useThemeStore();
+
+  const getShadowClass = () => {
+    switch (theme.shadowIntensity) {
+      case 'none': return '';
+      case 'sm': return 'shadow-sm';
+      case 'md': return 'shadow-md';
+      case 'lg': return 'shadow-lg';
+      default: return 'shadow-md';
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -87,9 +124,23 @@ export const ChoiceButton = ({ label, onClick, disabled }: ChoiceButtonProps) =>
         disabled={disabled}
         variant="outline"
         className={cn(
-          "w-full rounded-xl border-2 hover:border-primary hover:bg-accent",
-          "transition-all duration-200 text-left justify-start h-auto py-3 px-4"
+          "w-full border-2 transition-all duration-200 text-left justify-start h-auto py-3 px-4",
+          getShadowClass()
         )}
+        style={{ 
+          borderRadius: theme.borderRadius,
+          borderColor: theme.secondaryColor + '40',
+          fontFamily: theme.fontFamily,
+          color: theme.textColor
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = theme.primaryColor;
+          e.currentTarget.style.backgroundColor = theme.primaryColor + '10';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = theme.secondaryColor + '40';
+          e.currentTarget.style.backgroundColor = 'transparent';
+        }}
       >
         {label}
       </Button>

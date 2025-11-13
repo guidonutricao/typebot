@@ -1,7 +1,7 @@
 import { NavLink } from "@/components/NavLink";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Palette, Settings, Share2, BarChart3, ArrowLeft } from "lucide-react";
+import { LayoutDashboard, Palette, Share2, BarChart3, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFlowStore } from "@/stores/flowStore";
 
@@ -15,7 +15,6 @@ export function Navbar() {
 
   const getTabValue = (path: string) => {
     if (path.includes('/theme')) return 'theme';
-    if (path.includes('/settings')) return 'settings';
     if (path.includes('/share')) return 'share';
     if (path.includes('/results')) return 'results';
     return 'flow';
@@ -40,7 +39,7 @@ export function Navbar() {
 
         {flowId && (
           <Tabs value={getTabValue(currentPath)} className="flex-1">
-            <TabsList className="grid w-full max-w-2xl grid-cols-5">
+            <TabsList className="grid w-full max-w-2xl grid-cols-4">
               <TabsTrigger value="flow" asChild>
                 <NavLink to={`/admin/flow/${flowId}`} className="flex items-center gap-2">
                   <LayoutDashboard className="w-4 h-4" />
@@ -51,12 +50,6 @@ export function Navbar() {
                 <NavLink to={`/admin/flow/${flowId}/theme`} className="flex items-center gap-2">
                   <Palette className="w-4 h-4" />
                   <span className="hidden sm:inline">Tema</span>
-                </NavLink>
-              </TabsTrigger>
-              <TabsTrigger value="settings" asChild>
-                <NavLink to={`/admin/flow/${flowId}/settings`} className="flex items-center gap-2">
-                  <Settings className="w-4 h-4" />
-                  <span className="hidden sm:inline">Config</span>
                 </NavLink>
               </TabsTrigger>
               <TabsTrigger value="share" asChild>
