@@ -29,8 +29,7 @@ import {
   RichTextElement
 } from "@/types/flow";
 import { toast } from "sonner";
-import { getFormMeta, getFileEntry, base64ToString } from "@/utils/formStorage";
-import { parseFlowString } from "@/utils/flowParser";
+import { getFlowBySlug, getFlow } from "@/utils/supabaseStorage";
 
 // Debug utilities (disponível no console)
 if (import.meta.env.DEV) {
@@ -49,8 +48,6 @@ type Message = {
 const Index = () => {
   const { formId } = useParams<{ formId: string }>();
   const navigate = useNavigate();
-  const getFlow = useFlowStore((state) => state.getFlow);
-  const hasHydrated = useFlowStore((state) => state._hasHydrated);
   const { theme } = useThemeStore();
   
   const [screen, setScreen] = useState<ScreenType>('welcome');
@@ -108,120 +105,58 @@ const Index = () => {
           return;
         }
 
-        // CORREÇÃO: Aguardar hidratação antes de buscar no store
-        if (!hasHydrated) {
-          console.log('[Form] Aguardando hidratação do store...');
-          return; // Sai e aguarda próxima execução quando hasHydrated mudar
+        console.log('[Form] ========================================');
+        console.log('[Form] Carregando fluxo do Supabase');
+        console.log('[Form] ID/Slug recebido:', formId);
+        console.log('[Form] ========================================');
+        
+        // Tentar buscar por ID primeiro
+        let flowMeta = await getFlow(formId);
+        
+        // Se não encontrar por ID, tentar por slug
+        if (!flowMeta) {
+          console.log('[Form] Não encontrado por ID, tentando por slug...');
+          flowMeta = await getFlowBySlug(formId);
         }
-
-        // Com formId = carregar do formStorage
-        console.log('[Form] ========================================');
-        console.log('[Form] Iniciando carregamento do fluxo');
-        console.log('[Form] ID recebido da URL:', formId);
-        console.log('[Form] Tipo do ID:', typeof formId);
-        console.log('[Form] ========================================');
         
-        // 1. Buscar metadados no formStorage
-        const meta = getFormMeta(formId);
-        
-        if (!meta) {
-          console.warn('[Form] ⚠️ Meta não encontrado no formStorage, tentando fallback para Zustand store...');
-          
-          // FALLBACK: Buscar no store antigo (para fluxos criados antes da migração)
-          const flow = getFlow(formId);
-          
-          if (!flow) {
-            console.error('[Form] ❌ Fluxo não encontrado nem no storage nem no store');
-            console.error('[Form] IDs disponíveis no store:', useFlowStore.getState().flows.map(f => f.id));
-            
-            // Listar o que tem no localStorage
-            const allKeys = Object.keys(localStorage).filter(k => k.startsWith('typeflow:'));
-            console.error('[Form] Chaves no localStorage:', allKeys);
-            
-            setError("not-found");
-            setLoading(false);
-            return;
-          }
-          
-          console.log('[Form] ✓ Fluxo encontrado no store (modo fallback):', flow.name);
-          
-          if (!flow.isPublished) {
-            console.log('[Form] Formulário não publicado');
-            setError("not-published");
-            setLoading(false);
-            return;
-          }
-          
-          // Usar data diretamente do store
-          console.log('[Form] ✓ Usando dados do store:', {
-            groups: flow.data.groups?.length || 0,
-            variables: flow.data.variables?.length || 0
-          });
-          
-          setFlowData(flow.data);
+        if (!flowMeta) {
+          console.error('[Form] ❌ Fluxo não encontrado no Supabase');
+          setError("not-found");
           setLoading(false);
           return;
         }
 
-        console.log('[Form] ✓ Meta encontrado no formStorage:', {
-          id: meta.id,
-          name: meta.name,
-          filePath: meta.filePath,
-          isPublished: meta.isPublished
+        console.log('[Form] ✓ Fluxo encontrado:', {
+          id: flowMeta.id,
+          name: flowMeta.name,
+          slug: flowMeta.slug,
+          isPublished: flowMeta.isPublished
         });
 
-        // 2. Checar publicação
-        if (!meta.isPublished) {
+        // Verificar se está publicado
+        if (!flowMeta.isPublished) {
           console.log('[Form] Formulário não publicado');
           setError("not-published");
           setLoading(false);
           return;
         }
 
-        // 3. Carregar conteúdo do arquivo
-        const fileEntry = getFileEntry(formId);
-        if (!fileEntry) {
-          console.error('[Form] ❌ Arquivo não encontrado no storage:', formId);
-          setError("not-found");
-          setLoading(false);
-          return;
-        }
-
-        console.log('[Form] ✓ Arquivo encontrado:', {
-          mimeType: fileEntry.mimeType,
-          fileName: fileEntry.originalFileName,
-          sizeBase64: fileEntry.contentBase64.length
-        });
-
-        // 4. Decodificar e parsear
-        const contentString = base64ToString(fileEntry.contentBase64);
-        const ext = fileEntry.originalFileName.toLowerCase();
-        
-        console.log('[Form] Parseando arquivo:', {
-          extensão: ext,
-          tamanhoConteúdo: contentString.length
-        });
-        
-        const parseResult = await parseFlowString(
-          contentString,
-          ext.endsWith('.js') ? 'js' : 'json'
-        );
-
-        if (!parseResult.data) {
-          console.error('[Form] ❌ Erro ao parsear arquivo');
+        // Usar os dados do fluxo
+        if (!flowMeta.data) {
+          console.error('[Form] ❌ Dados do fluxo não encontrados');
           setError("load-error");
           setLoading(false);
           return;
         }
 
-        console.log('[Form] ✓ Fluxo parseado com sucesso:', {
-          groups: parseResult.data.groups?.length || 0,
-          variables: parseResult.data.variables?.length || 0
+        console.log('[Form] ✓ Fluxo carregado com sucesso:', {
+          groups: flowMeta.data.groups?.length || 0,
+          variables: flowMeta.data.variables?.length || 0
         });
 
-        setFlowData(parseResult.data);
+        setFlowData(flowMeta.data);
       } catch (err) {
-        console.error("[Form] ❌ Erro fatal ao carregar flow:", err);
+        console.error("[Form] ❌ Erro ao carregar flow:", err);
         setError("load-error");
       } finally {
         setLoading(false);
@@ -229,7 +164,7 @@ const Index = () => {
     };
 
     loadFlowData();
-  }, [formId, getFlow, hasHydrated]);
+  }, [formId]);
 
   const {
     currentBlock,

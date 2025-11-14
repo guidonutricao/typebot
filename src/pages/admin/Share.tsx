@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,11 +23,38 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useFlowStore } from "@/stores/flowStore";
 
 export default function Share() {
-  const formUrl = `${window.location.origin}/form`;
+  const { flowId } = useParams<{ flowId: string }>();
+  const getFlow = useFlowStore((state) => state.getFlow);
+  const togglePublish = useFlowStore((state) => state.togglePublish);
+  
+  const flow = flowId ? getFlow(flowId) : null;
+  const [isActive, setIsActive] = useState(flow?.isPublished || false);
+  
+  // Usar slug se disponível, senão usar ID
+  const formIdentifier = flow?.slug || flowId || '';
+  const formUrl = `${window.location.origin}/forms/${formIdentifier}`;
   const embedCode = `<iframe src="${formUrl}" width="100%" height="600" frameborder="0"></iframe>`;
-  const [isActive, setIsActive] = useState(true);
+
+  useEffect(() => {
+    if (flow) {
+      setIsActive(flow.isPublished);
+    }
+  }, [flow]);
+
+  const handleTogglePublish = async () => {
+    if (!flowId) return;
+    
+    try {
+      await togglePublish(flowId);
+      setIsActive(!isActive);
+      toast.success(isActive ? 'Formulário despublicado' : 'Formulário publicado!');
+    } catch (error) {
+      toast.error('Erro ao atualizar status de publicação');
+    }
+  };
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -57,9 +85,9 @@ export default function Share() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setIsActive(!isActive)}
+                onClick={handleTogglePublish}
               >
-                {isActive ? 'Pausar' : 'Ativar'}
+                {isActive ? 'Despublicar' : 'Publicar'}
               </Button>
             </div>
           </div>

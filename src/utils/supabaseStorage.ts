@@ -1,5 +1,16 @@
 import { supabase } from '@/lib/supabase';
 
+// Testa conexão com Supabase
+export const testConnection = async (): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.from('flows').select('count').limit(1);
+    return !error;
+  } catch (error) {
+    console.error('[Supabase] Erro de conexão:', error);
+    return false;
+  }
+};
+
 export interface FormMeta {
   id: string;
   name: string;
@@ -44,7 +55,19 @@ export const saveFlow = async (
   }
 
   const id = existingId || generateId();
-  const normalizedSlug = slug ? normalizeSlug(slug) : normalizeSlug(name);
+  let normalizedSlug = slug ? normalizeSlug(slug) : normalizeSlug(name);
+
+  // Verificar se slug já existe (exceto para o próprio fluxo)
+  const { data: existingSlugs } = await supabase
+    .from('flows')
+    .select('id')
+    .eq('slug', normalizedSlug)
+    .neq('id', id);
+
+  // Se slug já existe, adicionar sufixo
+  if (existingSlugs && existingSlugs.length > 0) {
+    normalizedSlug = `${normalizedSlug}-${Date.now()}`;
+  }
 
   const flowData = {
     id,
@@ -58,20 +81,50 @@ export const saveFlow = async (
     settings: settings || {},
   };
 
-  const { data: flow, error } = existingId
-    ? await supabase
+  let flow;
+  let error;
+
+  if (existingId) {
+    // Para update, primeiro verificar se existe
+    const { data: existing } = await supabase
+      .from('flows')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    if (existing) {
+      // Atualizar
+      const result = await supabase
         .from('flows')
         .update(flowData)
         .eq('id', id)
         .select()
-        .single()
-    : await supabase
+        .single();
+      flow = result.data;
+      error = result.error;
+    } else {
+      // Se não existe, inserir
+      const result = await supabase
         .from('flows')
         .insert(flowData)
         .select()
         .single();
+      flow = result.data;
+      error = result.error;
+    }
+  } else {
+    // Inserir novo
+    const result = await supabase
+      .from('flows')
+      .insert(flowData)
+      .select()
+      .single();
+    flow = result.data;
+    error = result.error;
+  }
 
   if (error) throw error;
+  if (!flow) throw new Error('Falha ao salvar fluxo');
 
   return {
     id: flow.id,
@@ -115,14 +168,16 @@ export const getFlow = async (id: string): Promise<FormMeta | null> => {
 
 // Obtém fluxo por slug (público)
 export const getFlowBySlug = async (slug: string): Promise<FormMeta | null> => {
-  const { data: flow, error } = await supabase
+  const { data: flows, error } = await supabase
     .from('flows')
     .select('*')
     .eq('slug', slug)
     .eq('is_published', true)
-    .single();
+    .limit(1);
 
-  if (error || !flow) return null;
+  if (error || !flows || flows.length === 0) return null;
+  
+  const flow = flows[0];
 
   return {
     id: flow.id,
@@ -275,4 +330,19 @@ export const getFlowResponses = async (flowId: string) => {
   }
 
   return data;
+};
+
+// Deleta uma resposta de formulário
+export const deleteFormResponse = async (responseId: string): Promise<boolean> => {
+  const { error } = await supabase
+    .from('form_responses')
+    .delete()
+    .eq('id', responseId);
+
+  if (error) {
+    console.error('Erro ao deletar resposta:', error);
+    return false;
+  }
+
+  return true;
 };

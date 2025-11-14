@@ -7,8 +7,9 @@ import { Upload, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useFlowStore } from '@/stores/flowStore';
 import { useNavigate } from 'react-router-dom';
-import { saveFormFile } from '@/utils/formStorage';
 import { parseFlowFile } from '@/utils/flowParser';
+import { testConnection } from '@/utils/supabaseStorage';
+import { supabase } from '@/lib/supabase';
 
 interface CreateFlowDialogProps {
   open: boolean;
@@ -23,7 +24,6 @@ export function CreateFlowDialog({ open, onOpenChange }: CreateFlowDialogProps) 
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const addFlowRecord = useFlowStore((state) => state.addFlowRecord);
   const navigate = useNavigate();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,44 +80,61 @@ export function CreateFlowDialog({ open, onOpenChange }: CreateFlowDialogProps) 
       setLoading(true);
       console.log('[CreateFlow] Criando novo fluxo...');
       
-      // 1. Salvar arquivo no formStorage
-      const meta = await saveFormFile(file, name.trim());
-      console.log('[CreateFlow] ID gerado:', meta.id);
-      console.log('[CreateFlow] Arquivo salvo em:', meta.filePath);
+      // Testar conexão com Supabase
+      const isConnected = await testConnection();
+      if (!isConnected) {
+        toast.error('Erro de conexão com o Supabase. Verifique sua internet e configuração.');
+        return;
+      }
       
-      // 2. Parse do arquivo para obter os dados
+      // Verificar autenticação
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('[CreateFlow] Erro de autenticação:', authError);
+        toast.error('Você precisa estar autenticado. Faça login novamente.');
+        return;
+      }
+      
+      console.log('[CreateFlow] Usuário autenticado:', user.id);
+      
+      // Parse do arquivo para obter os dados
       const parseResult = await parseFlowFile(file);
       
-      // 3. Registrar no store
-      const flowId = addFlowRecord(meta, parseResult.data);
-      
-      // 4. Verificar se salvou
-      const savedFlow = useFlowStore.getState().getFlow(flowId);
-      if (savedFlow) {
-        console.log('[CreateFlow] Fluxo salvo com sucesso:', {
-          id: savedFlow.id,
-          name: savedFlow.name,
-          filePath: savedFlow.filePath,
-          isPublished: savedFlow.isPublished
-        });
-        toast.success('Formulário criado com sucesso!');
-        
-        // Reset
-        setName('');
-        setFile(null);
-        setFileName('');
-        setUploadStatus('idle');
-        onOpenChange(false);
-        
-        // Navigate
-        navigate(`/admin/flow/${flowId}`);
-      } else {
-        console.error('[CreateFlow] Erro: Fluxo não foi salvo no store!');
-        toast.error('Erro ao salvar formulário');
+      if (!parseResult.data) {
+        toast.error('Arquivo inválido');
+        return;
       }
-    } catch (error) {
+      
+      console.log('[CreateFlow] Arquivo parseado com sucesso');
+      
+      // Salvar no Supabase usando o store
+      const flowId = await useFlowStore.getState().addFlow(name.trim(), parseResult.data);
+      console.log('[CreateFlow] Fluxo salvo no Supabase:', flowId);
+      
+      toast.success('Formulário criado com sucesso!');
+      
+      // Reset
+      setName('');
+      setFile(null);
+      setFileName('');
+      setUploadStatus('idle');
+      onOpenChange(false);
+      
+      // Navigate
+      navigate(`/admin/flow/${flowId}`);
+    } catch (error: any) {
       console.error('[CreateFlow] Erro ao criar fluxo:', error);
-      toast.error('Erro ao criar formulário');
+      
+      // Mensagens de erro mais específicas
+      if (error.message?.includes('not authenticated') || error.message?.includes('JWT')) {
+        toast.error('Erro de autenticação. Faça login novamente.');
+      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+        toast.error('Erro de conexão. Verifique sua internet.');
+      } else if (error.message?.includes('duplicate') || error.message?.includes('unique')) {
+        toast.error('Já existe um formulário com este nome.');
+      } else {
+        toast.error(`Erro ao criar formulário: ${error.message || 'Verifique a conexão com o Supabase'}`);
+      }
     } finally {
       setLoading(false);
     }

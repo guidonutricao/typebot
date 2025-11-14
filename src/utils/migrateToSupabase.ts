@@ -44,24 +44,42 @@ export const migrateLocalStorageToSupabase = async (): Promise<MigrationResult> 
         // Obter conteúdo do arquivo
         const fileEntry = localFormStorage.getFileEntry(localFlow.id);
         if (!fileEntry) {
-          throw new Error(`Arquivo não encontrado para o fluxo ${localFlow.id}`);
+          throw new Error(`Arquivo não encontrado`);
         }
 
         // Decodificar conteúdo
-        const content = localFormStorage.base64ToString(fileEntry.contentBase64);
-        const data = JSON.parse(content);
+        let data;
+        try {
+          const content = localFormStorage.base64ToString(fileEntry.contentBase64);
+          data = JSON.parse(content);
+        } catch (parseError: any) {
+          throw new Error(`Erro ao processar dados: ${parseError.message}`);
+        }
+
+        // Validar dados
+        if (!data || typeof data !== 'object') {
+          throw new Error('Dados do fluxo inválidos');
+        }
 
         // Salvar no Supabase
-        await supabaseStorage.saveFlow(
-          localFlow.name,
-          data,
-          localFlow.id,
-          localFlow.slug
-        );
+        try {
+          await supabaseStorage.saveFlow(
+            localFlow.name,
+            data,
+            localFlow.id,
+            localFlow.slug
+          );
+        } catch (saveError: any) {
+          throw new Error(`Erro ao salvar: ${saveError.message}`);
+        }
 
         // Atualizar status de publicação se necessário
         if (localFlow.isPublished) {
-          await supabaseStorage.updatePublishStatus(localFlow.id, true);
+          try {
+            await supabaseStorage.updatePublishStatus(localFlow.id, true);
+          } catch (publishError: any) {
+            console.warn(`[Migration] Aviso: não foi possível publicar ${localFlow.name}`);
+          }
         }
 
         result.migratedCount++;
@@ -70,7 +88,7 @@ export const migrateLocalStorageToSupabase = async (): Promise<MigrationResult> 
         result.failedCount++;
         const errorMsg = `Erro ao migrar ${localFlow.name}: ${error.message}`;
         result.errors.push(errorMsg);
-        console.error(`[Migration] ✗ ${errorMsg}`);
+        console.error(`[Migration] ✗ ${errorMsg}`, error);
       }
     }
 
