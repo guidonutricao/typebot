@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { FlowData, Block, UserResponse, Group } from '@/types/flow';
 import { interpolateVariables } from '@/utils/variableInterpolation';
 
@@ -8,15 +8,33 @@ export const useFlowNavigation = (flowData: FlowData | null) => {
   const [responses, setResponses] = useState<UserResponse[]>([]);
   const [variables, setVariables] = useState<Record<string, any>>({});
   const [variableNames, setVariableNames] = useState<Record<string, string>>({});
+  
+  // ✅ FIX: Usar ref para sempre ter o valor mais recente das variáveis
+  const variablesRef = useRef<Record<string, any>>({});
+  
+  useEffect(() => {
+    variablesRef.current = variables;
+  }, [variables]);
 
   // Load saved progress and build variable name map
   useEffect(() => {
+    console.log('[useFlowNavigation] Loading flowData:', {
+      hasFlowData: !!flowData,
+      hasVariables: !!flowData?.variables,
+      variablesCount: flowData?.variables?.length || 0,
+      variables: flowData?.variables
+    });
+
     if (flowData?.variables) {
       const nameMap: Record<string, string> = {};
       flowData.variables.forEach(v => {
         nameMap[v.id] = v.name;
+        console.log('[useFlowNavigation] Mapping variable:', { id: v.id, name: v.name });
       });
       setVariableNames(nameMap);
+      console.log('[useFlowNavigation] Variable name map created:', nameMap);
+    } else {
+      console.warn('[useFlowNavigation] No variables found in flowData!');
     }
 
     const saved = localStorage.getItem('flow-progress');
@@ -27,6 +45,7 @@ export const useFlowNavigation = (flowData: FlowData | null) => {
         setCurrentBlockIndex(blockIndex);
         setResponses(savedResponses || []);
         setVariables(savedVars || {});
+        console.log('[useFlowNavigation] Restored from localStorage:', { savedVars });
       } catch (e) {
         console.error('Error loading saved progress', e);
       }
@@ -119,13 +138,27 @@ export const useFlowNavigation = (flowData: FlowData | null) => {
     // Update variable with both ID and readable name
     if (variableId) {
       const variableName = variableNames[variableId] || variableId;
-      setVariables(prev => ({
-        ...prev,
-        [variableId]: value,
-        [variableName]: value // Also store by name for interpolation
-      }));
+      console.log('[useFlowNavigation] Adding variable:', {
+        variableId,
+        variableName,
+        value,
+        allVariableNames: variableNames,
+        flowDataVariables: flowData?.variables
+      });
+      
+      setVariables(prev => {
+        const newVars = {
+          ...prev,
+          [variableId]: value,
+          [variableName]: value // Also store by name for interpolation
+        };
+        console.log('[useFlowNavigation] Updated variables:', newVars);
+        return newVars;
+      });
+    } else {
+      console.warn('[useFlowNavigation] No variableId provided for response:', { blockId, value });
     }
-  }, [variableNames]);
+  }, [variableNames, flowData]);
 
   const resetFlow = useCallback(() => {
     setCurrentGroupIndex(0);
@@ -142,8 +175,10 @@ export const useFlowNavigation = (flowData: FlowData | null) => {
   }, [flowData, currentGroupIndex, currentBlockIndex]);
 
   const interpolateText = useCallback((text: string) => {
-    return interpolateVariables(text, variables);
-  }, [variables]);
+    // ✅ FIX: Usar variablesRef.current para sempre ter o valor mais recente
+    console.log('[useFlowNavigation] interpolateText called with variables:', variablesRef.current);
+    return interpolateVariables(text, variablesRef.current);
+  }, []); // Sem dependências para sempre usar o ref mais recente
 
   return {
     currentBlock: getCurrentBlock(),

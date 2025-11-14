@@ -197,14 +197,29 @@ const Index = () => {
     setIsTyping(false);
     
     if (richText) {
-      // Interpolate variables in rich text
+      console.log('[Form] Original richText:', richText);
+      
+      // Interpolate variables in rich text - substitui {{variableName}} pelos valores
       const interpolatedRichText = richText.map(element => ({
         ...element,
-        children: element.children.map(child => ({
-          ...child,
-          text: interpolateText(child.text)
-        }))
+        children: element.children.map(child => {
+          const originalText = child.text;
+          const interpolatedText = interpolateText(child.text);
+          
+          console.log('[Form] Interpolating:', {
+            original: originalText,
+            interpolated: interpolatedText,
+            changed: originalText !== interpolatedText
+          });
+          
+          return {
+            ...child,
+            text: interpolatedText // Substitui {{var}} pelo valor da variável
+          };
+        })
       }));
+      
+      console.log('[Form] Interpolated richText:', interpolatedRichText);
       setMessages(prev => [...prev, { richText: interpolatedRichText, isBot: true, image }]);
     }
   };
@@ -286,7 +301,7 @@ const Index = () => {
   const handleTextInput = (value: string) => {
     const inputBlock = currentBlock as TextInputBlock | NumberInputBlock;
     setMessages(prev => [...prev, { content: value, isBot: false }]);
-    addResponse(inputBlock.id, value, inputBlock.options.variableId);
+    addResponse(inputBlock.id, value, inputBlock.options?.variableId);
     setWaitingForInput(false);
     setTimeout(() => goToNextBlock(), 500);
   };
@@ -297,7 +312,7 @@ const Index = () => {
       content: `${files.length} foto(s) enviada(s)`, 
       isBot: false 
     }]);
-    addResponse(fileBlock.id, files, fileBlock.options.variableId);
+    addResponse(fileBlock.id, files, fileBlock.options?.variableId);
     setWaitingForInput(false);
     setTimeout(() => goToNextBlock(), 500);
   };
@@ -305,7 +320,7 @@ const Index = () => {
   const handleRatingSelect = (value: number) => {
     const ratingBlock = currentBlock as RatingBlock;
     setMessages(prev => [...prev, { content: value.toString(), isBot: false }]);
-    addResponse(ratingBlock.id, value.toString(), ratingBlock.options.variableId);
+    addResponse(ratingBlock.id, value.toString(), ratingBlock.options?.variableId);
     setWaitingForInput(false);
     setTimeout(() => goToNextBlock(), 500);
   };
@@ -313,12 +328,21 @@ const Index = () => {
   const handleChoiceInput = (choice: string, itemId?: string) => {
     const choiceBlock = currentBlock as ChoiceInputBlock;
     setMessages(prev => [...prev, { content: choice, isBot: false }]);
-    addResponse(choiceBlock.id, choice);
+    
+    // ✅ FIX: Passar o variableId do choice block (se existir)
+    addResponse(
+      choiceBlock.id, 
+      choice, 
+      choiceBlock.options?.variableId // Usar optional chaining
+    );
+    
     setWaitingForInput(false);
+    
+    // ✅ FIX: Aumentar delay para garantir que o estado seja atualizado
     setTimeout(() => {
       const item = choiceBlock.items.find(i => i.id === itemId);
       goToNextBlock(item?.outgoingEdgeId);
-    }, 500);
+    }, 100); // Delay maior para garantir atualização do estado
   };
 
   const handleSummarySubmit = () => {
@@ -530,34 +554,34 @@ const Index = () => {
                 {waitingForInput && currentBlock?.type === 'text input' && (
                   <ChatInput
                     onSubmit={handleTextInput}
-                    placeholder={(currentBlock as TextInputBlock).options.labels.placeholder}
-                    buttonLabel={(currentBlock as TextInputBlock).options.labels.button}
-                    isLong={(currentBlock as TextInputBlock).options.isLong}
+                    placeholder={(currentBlock as TextInputBlock).options?.labels?.placeholder || 'Digite sua resposta'}
+                    buttonLabel={(currentBlock as TextInputBlock).options?.labels?.button || 'Enviar'}
+                    isLong={(currentBlock as TextInputBlock).options?.isLong}
                   />
                 )}
 
                 {waitingForInput && currentBlock?.type === 'number input' && (
                   <NumberInput
                     onSubmit={handleTextInput}
-                    placeholder={(currentBlock as NumberInputBlock).options.labels.placeholder}
-                    buttonLabel={(currentBlock as NumberInputBlock).options.labels.button}
+                    placeholder={(currentBlock as NumberInputBlock).options?.labels?.placeholder || 'Digite um número'}
+                    buttonLabel={(currentBlock as NumberInputBlock).options?.labels?.button || 'Enviar'}
                   />
                 )}
 
                 {waitingForInput && currentBlock?.type === 'file upload' && (
                   <FileUploadInput
                     onSubmit={handleFileUpload}
-                    placeholder={(currentBlock as FileUploadBlock).options.labels.placeholder}
-                    buttonLabel={(currentBlock as FileUploadBlock).options.labels.button}
-                    isMultiple={(currentBlock as FileUploadBlock).options.isMultipleAllowed}
+                    placeholder={(currentBlock as FileUploadBlock).options?.labels?.placeholder || 'Enviar arquivo'}
+                    buttonLabel={(currentBlock as FileUploadBlock).options?.labels?.button || 'Enviar'}
+                    isMultiple={(currentBlock as FileUploadBlock).options?.isMultipleAllowed}
                   />
                 )}
 
                 {waitingForInput && currentBlock?.type === 'rating' && (
                   <RatingInput
-                    length={(currentBlock as RatingBlock).options.length}
-                    leftLabel={(currentBlock as RatingBlock).options.labels?.left}
-                    rightLabel={(currentBlock as RatingBlock).options.labels?.right}
+                    length={(currentBlock as RatingBlock).options?.length || 5}
+                    leftLabel={(currentBlock as RatingBlock).options?.labels?.left}
+                    rightLabel={(currentBlock as RatingBlock).options?.labels?.right}
                     onSelect={handleRatingSelect}
                   />
                 )}

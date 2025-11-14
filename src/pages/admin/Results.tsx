@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { getFlowResponses, listFlows, deleteFormResponse } from "@/utils/supabaseStorage";
+import { getFlowResponses, listFlows, deleteFormResponse, getFlow } from "@/utils/supabaseStorage";
 import { useAuthStore } from "@/stores/authStore";
 import {
   Select,
@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { extractVariablesFromFlow, getVariableValue } from "@/utils/extractVariables";
 
 interface FormResponse {
   id: string;
@@ -43,6 +44,7 @@ interface FormResponse {
 interface Flow {
   id: string;
   name: string;
+  data?: any;
 }
 
 export default function Results() {
@@ -52,6 +54,7 @@ export default function Results() {
   const [selectedFlowId, setSelectedFlowId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [variables, setVariables] = useState<string[]>([]);
 
   useEffect(() => {
     loadFlows();
@@ -60,19 +63,35 @@ export default function Results() {
   useEffect(() => {
     if (selectedFlowId) {
       loadResponses(selectedFlowId);
+      loadFlowVariables(selectedFlowId);
     }
   }, [selectedFlowId]);
 
   const loadFlows = async () => {
     try {
       const flowsList = await listFlows();
-      setFlows(flowsList.map(f => ({ id: f.id, name: f.name })));
+      setFlows(flowsList.map(f => ({ id: f.id, name: f.name, data: f.data })));
       if (flowsList.length > 0) {
         setSelectedFlowId(flowsList[0].id);
       }
     } catch (error) {
       console.error("Erro ao carregar fluxos:", error);
       toast.error("Erro ao carregar fluxos");
+    }
+  };
+
+  const loadFlowVariables = async (flowId: string) => {
+    try {
+      const flow = await getFlow(flowId);
+      if (flow && flow.data) {
+        const extractedVars = extractVariablesFromFlow(flow.data);
+        setVariables(extractedVars);
+      } else {
+        setVariables([]);
+      }
+    } catch (error) {
+      console.error("Erro ao extrair variáveis:", error);
+      setVariables([]);
     }
   };
 
@@ -112,22 +131,17 @@ export default function Results() {
       return;
     }
 
-    // Coletar todas as chaves únicas das respostas
-    const allKeys = new Set<string>();
-    responses.forEach(r => {
-      Object.keys(r.responses).forEach(key => allKeys.add(key));
-    });
+    // Usar variáveis do fluxo ou todas as chaves das respostas
+    const columnsToExport = variables.length > 0 ? variables : Array.from(
+      new Set(responses.flatMap(r => Object.keys(r.responses)))
+    );
 
-    const headers = ["ID", "Data", "Status", "Completo", ...Array.from(allKeys)];
+    const headers = ["ID", "Data", "Status", ...columnsToExport];
     const rows = responses.map((r) => [
       r.id,
       new Date(r.created_at).toLocaleString('pt-BR'),
       r.completed ? "Completo" : "Incompleto",
-      r.completed ? "Sim" : "Não",
-      ...Array.from(allKeys).map(key => {
-        const value = r.responses[key];
-        return typeof value === 'object' ? JSON.stringify(value) : value || '';
-      })
+      ...columnsToExport.map(varName => getVariableValue(r.responses, varName))
     ]);
 
     const csv = [headers, ...rows]
@@ -351,45 +365,67 @@ export default function Results() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[100px]">ID</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Respostas</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                    <TableHead className="w-[80px] sticky left-0 bg-background z-10">ID</TableHead>
+                    <TableHead className="w-[140px] sticky left-[80px] bg-background z-10">Data</TableHead>
+                    <TableHead className="w-[100px]">Status</TableHead>
+                    {variables.length > 0 ? (
+                      variables.map((varName) => (
+                        <TableHead key={varName} className="min-w-[150px]">
+                          <div className="flex items-center gap-1">
+                            <span className="font-mono text-xs text-primary">&#123;&#123;</span>
+                            <span>{varName}</span>
+                            <span className="font-mono text-xs text-primary">&#125;&#125;</span>
+                          </div>
+                        </TableHead>
+                      ))
+                    ) : (
+                      <TableHead>Respostas</TableHead>
+                    )}
+                    <TableHead className="text-right w-[100px] sticky right-0 bg-background z-10">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredResponses.map((response) => (
                     <TableRow key={response.id} className="hover:bg-muted/50">
-                      <TableCell className="font-mono text-xs">
+                      <TableCell className="font-mono text-xs sticky left-0 bg-background">
                         {response.id.substring(0, 8)}...
                       </TableCell>
-                      <TableCell className="text-sm">
+                      <TableCell className="text-xs sticky left-[80px] bg-background">
                         {formatDate(response.created_at)}
                       </TableCell>
                       <TableCell>
                         <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                             response.completed
                               ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                               : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
                           }`}
                         >
-                          {response.completed ? "Completo" : "Incompleto"}
+                          {response.completed ? "✓" : "○"}
                         </span>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {Object.keys(response.responses).length} campo(s) preenchido(s)
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                      {variables.length > 0 ? (
+                        variables.map((varName) => (
+                          <TableCell key={varName} className="text-sm max-w-[200px] truncate">
+                            {getVariableValue(response.responses, varName) || (
+                              <span className="text-muted-foreground italic">-</span>
+                            )}
+                          </TableCell>
+                        ))
+                      ) : (
+                        <TableCell className="text-sm text-muted-foreground">
+                          {Object.keys(response.responses).length} campo(s)
+                        </TableCell>
+                      )}
+                      <TableCell className="text-right sticky right-0 bg-background">
+                        <div className="flex justify-end gap-1">
                           <Dialog>
                             <DialogTrigger asChild>
-                              <Button variant="ghost" size="icon" title="Ver detalhes">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" title="Ver detalhes">
                                 <Eye className="w-4 h-4" />
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
                               <DialogHeader>
                                 <DialogTitle>Detalhes da Resposta</DialogTitle>
                                 <DialogDescription>
@@ -409,22 +445,41 @@ export default function Results() {
                                 </div>
                                 
                                 <div className="border-t pt-4">
-                                  <h4 className="font-semibold mb-3">Respostas do Formulário</h4>
-                                  <div className="space-y-3">
-                                    {Object.entries(response.responses).map(([key, value]) => (
-                                      <div key={key} className="p-3 bg-muted/50 rounded-lg">
-                                        <p className="text-sm font-medium text-muted-foreground mb-1">
-                                          {key}
-                                        </p>
-                                        <p className="text-sm break-words">
-                                          {typeof value === 'object' 
-                                            ? JSON.stringify(value, null, 2) 
-                                            : String(value)
-                                          }
-                                        </p>
-                                      </div>
-                                    ))}
-                                  </div>
+                                  <h4 className="font-semibold mb-3">Variáveis do Fluxo</h4>
+                                  {variables.length > 0 ? (
+                                    <div className="grid gap-3">
+                                      {variables.map((varName) => (
+                                        <div key={varName} className="p-3 bg-muted/50 rounded-lg border border-border">
+                                          <div className="flex items-center gap-2 mb-1">
+                                            <span className="font-mono text-xs text-primary">&#123;&#123;</span>
+                                            <p className="text-sm font-medium">{varName}</p>
+                                            <span className="font-mono text-xs text-primary">&#125;&#125;</span>
+                                          </div>
+                                          <p className="text-sm break-words pl-6">
+                                            {getVariableValue(response.responses, varName) || (
+                                              <span className="text-muted-foreground italic">Sem resposta</span>
+                                            )}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {Object.entries(response.responses).map(([key, value]) => (
+                                        <div key={key} className="p-3 bg-muted/50 rounded-lg">
+                                          <p className="text-sm font-medium text-muted-foreground mb-1">
+                                            {key}
+                                          </p>
+                                          <p className="text-sm break-words">
+                                            {typeof value === 'object' 
+                                              ? JSON.stringify(value, null, 2) 
+                                              : String(value)
+                                            }
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </DialogContent>
@@ -432,6 +487,7 @@ export default function Results() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8"
                             onClick={() => handleDeleteResponse(response.id)}
                             title="Deletar resposta"
                           >
