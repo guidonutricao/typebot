@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import { Card as DSCard } from '@/components/design-system';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -77,8 +77,8 @@ export function FlowCard({
         whileHover={{ y: -4 }}
         transition={{ duration: 0.2 }}
       >
-        <Card className="h-full hover:shadow-lg transition-shadow">
-          <CardHeader className="space-y-2">
+        <DSCard className="h-full hover:shadow-lg transition-shadow space-y-4">
+          <div className="space-y-2">
             <div className="flex items-start justify-between gap-2">
               {isEditing ? (
                 <div className="flex-1 flex items-center gap-2">
@@ -102,7 +102,7 @@ export function FlowCard({
               ) : (
                 <>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-lg line-clamp-1">{flow.name}</h3>
+                    <h3 className="font-semibold text-lg line-clamp-1 text-white">{flow.name}</h3>
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -148,25 +148,25 @@ export function FlowCard({
             <Badge variant={flow.isPublished ? 'default' : 'secondary'} className="w-fit">
               {flow.isPublished ? 'Publicado' : 'Rascunho'}
             </Badge>
-          </CardHeader>
+          </div>
 
-          <CardContent className="space-y-3">
+          <div className="space-y-3">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-muted-foreground">Grupos</p>
-                <p className="font-semibold">{flow.data.groups.length}</p>
+                <p className="text-[rgba(165,243,252,0.7)]">Grupos</p>
+                <p className="font-semibold text-white">{flow.data.groups.length}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Blocos</p>
-                <p className="font-semibold">{totalBlocks}</p>
+                <p className="text-[rgba(165,243,252,0.7)]">Blocos</p>
+                <p className="font-semibold text-white">{totalBlocks}</p>
               </div>
             </div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-[rgba(165,243,252,0.7)]">
               Atualizado em {lastUpdated}
             </div>
-          </CardContent>
+          </div>
 
-          <CardFooter className="flex gap-2">
+          <div className="flex gap-2 pt-2 border-t border-[rgba(6,182,212,0.125)]">
             <Button variant="outline" size="sm" className="flex-1" onClick={onEdit}>
               <Edit2 className="h-4 w-4 mr-2" />
               Editar
@@ -175,8 +175,8 @@ export function FlowCard({
               <Eye className="h-4 w-4 mr-2" />
               Preview
             </Button>
-          </CardFooter>
-        </Card>
+          </div>
+        </DSCard>
       </motion.div>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

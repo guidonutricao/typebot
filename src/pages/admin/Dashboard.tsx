@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Plus, FileText } from 'lucide-react';
+import { Button, Card } from '@/components/design-system';
+import { Plus, FileText, LogOut } from 'lucide-react';
 import { useFlowStore } from '@/stores/flowStore';
+import { useAuthStore } from '@/stores/authStore';
 import { FlowCard } from '@/components/admin/FlowCard';
 import { CreateFlowDialog } from '@/components/admin/CreateFlowDialog';
 import { toast } from 'sonner';
@@ -21,7 +21,18 @@ export default function Dashboard() {
   const updateFlowName = useFlowStore((state) => state.updateFlowName);
   const addFlow = useFlowStore((state) => state.addFlow);
   
+  const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast.success('Logout realizado com sucesso');
+      navigate('/auth');
+    } catch (error) {
+      toast.error('Erro ao fazer logout');
+    }
+  };
 
   // Migration: Import existing flow.json on first load
   useEffect(() => {
@@ -87,20 +98,30 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-amber-600 bg-clip-text text-transparent">
-            Meus Formulários
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Gerencie seus formulários conversacionais
-          </p>
-        </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Novo Fluxo
+    <div className="space-y-6 animate-fade-in bg-[#0f172a] min-h-screen p-6">
+      <div className="flex items-center gap-4">
+        <Button 
+          variant="secondary" 
+          onClick={handleLogout}
+          className="shrink-0"
+        >
+          <LogOut className="w-4 h-4" />
         </Button>
+        
+        <div className="flex-1 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-white via-[#22d3ee] to-white bg-clip-text text-transparent">
+              Meus Formulários
+            </h1>
+            <p className="text-[rgba(165,243,252,0.7)] mt-2 text-lg">
+              Gerencie seus formulários conversacionais
+            </p>
+          </div>
+          <Button variant="primary" onClick={() => setShowCreateDialog(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Fluxo
+          </Button>
+        </div>
       </div>
 
       {flows.length === 0 ? (
@@ -109,22 +130,20 @@ export default function Dashboard() {
           animate={{ opacity: 1, scale: 1 }}
           className="flex items-center justify-center py-20"
         >
-          <Card className="max-w-md">
-            <CardContent className="pt-6 text-center space-y-4">
-              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <FileText className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg">Nenhum formulário ainda</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Comece criando seu primeiro formulário conversacional
-                </p>
-              </div>
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Criar Primeiro Formulário
-              </Button>
-            </CardContent>
+          <Card className="max-w-md text-center space-y-4">
+            <div className="mx-auto w-12 h-12 rounded-full bg-gradient-to-r from-[rgba(6,182,212,0.125)] to-[rgba(3,105,161,0.125)] flex items-center justify-center">
+              <FileText className="w-6 h-6 text-[#22d3ee]" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg text-white">Nenhum formulário ainda</h3>
+              <p className="text-sm text-[rgba(165,243,252,0.7)] mt-1">
+                Comece criando seu primeiro formulário conversacional
+              </p>
+            </div>
+            <Button variant="primary" onClick={() => setShowCreateDialog(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Criar Primeiro Formulário
+            </Button>
           </Card>
         </motion.div>
       ) : (

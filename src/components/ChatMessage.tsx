@@ -43,41 +43,34 @@ export const ChatMessage = ({
     >
       <div 
         className={cn(
-          "max-w-[85%] md:max-w-[70%] px-4 py-3",
-          getShadowClass()
+          "max-w-[85%] md:max-w-[70%] px-4 py-3 rounded-lg",
+          isBot 
+            ? "bg-[rgba(14,41,63,0.31)] border border-[rgba(6,182,212,0.125)] text-white shadow-[0_1px_2px_rgba(0,0,0,0.05)]" 
+            : "bg-gradient-to-r from-[#06b6d4] to-[#0369a1] text-white shadow-[0_10px_15px_-3px_rgba(6,182,212,0.5)]"
         )}
-        style={{
-          backgroundColor: isBot ? theme.chatBubbleBot : theme.chatBubbleUser,
-          color: isBot ? theme.textColor : '#ffffff',
-          borderRadius: theme.borderRadius
-        }}
       >
         {image && (
           <img 
             src={image} 
             alt="Context" 
-            className="w-full mb-2"
-            style={{ borderRadius: theme.borderRadius }}
+            className="w-full mb-2 rounded-lg"
           />
         )}
         
         {isTyping ? (
           <div className="flex space-x-1 py-1">
             <motion.div
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: theme.textColor, opacity: 0.5 }}
+              className="w-2 h-2 rounded-full bg-[#22d3ee]"
               animate={{ scale: [1, 1.3, 1] }}
               transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
             />
             <motion.div
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: theme.textColor, opacity: 0.5 }}
+              className="w-2 h-2 rounded-full bg-[#22d3ee]"
               animate={{ scale: [1, 1.3, 1] }}
               transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
             />
             <motion.div
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: theme.textColor, opacity: 0.5 }}
+              className="w-2 h-2 rounded-full bg-[#22d3ee]"
               animate={{ scale: [1, 1.3, 1] }}
               transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
             />

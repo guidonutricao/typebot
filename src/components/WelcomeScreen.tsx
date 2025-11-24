@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/design-system";
 import { MessageSquare } from "lucide-react";
 import { useThemeStore } from "@/stores/themeStore";
 
@@ -11,31 +11,12 @@ interface WelcomeScreenProps {
 export const WelcomeScreen = ({ formName, onStart }: WelcomeScreenProps) => {
   const { theme } = useThemeStore();
 
-  const getShadowClass = () => {
-    switch (theme.shadowIntensity) {
-      case 'none': return '';
-      case 'sm': return 'shadow-sm';
-      case 'md': return 'shadow-md';
-      case 'lg': return 'shadow-lg';
-      default: return 'shadow-lg';
-    }
-  };
-
-  const getButtonRadius = () => {
-    switch (theme.buttonStyle) {
-      case 'pill': return '9999px';
-      case 'square': return '0';
-      case 'rounded': return theme.borderRadius;
-      default: return theme.borderRadius;
-    }
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="flex flex-col items-center justify-center min-h-screen p-6 text-center"
+      className="flex flex-col items-center justify-center min-h-screen p-6 text-center bg-[#0f172a]"
       style={{ fontFamily: theme.fontFamily }}
     >
       <motion.div
@@ -45,26 +26,16 @@ export const WelcomeScreen = ({ formName, onStart }: WelcomeScreenProps) => {
         className="mb-8"
       >
         <div 
-          className={`w-20 h-20 mx-auto mb-6 flex items-center justify-center ${getShadowClass()}`}
-          style={{ 
-            backgroundColor: theme.primaryColor,
-            borderRadius: theme.borderRadius
-          }}
+          className="w-20 h-20 mx-auto mb-6 flex items-center justify-center bg-gradient-to-r from-[#06b6d4] to-[#0369a1] rounded-lg shadow-[0_10px_15px_-3px_rgba(6,182,212,0.5)]"
         >
           <MessageSquare className="w-10 h-10 text-white" />
         </div>
         
-        <h1 
-          className="text-3xl md:text-4xl font-bold mb-3"
-          style={{ color: theme.primaryColor }}
-        >
+        <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-white via-[#22d3ee] to-white bg-clip-text text-transparent">
           {formName}
         </h1>
         
-        <p 
-          className="text-sm md:text-base max-w-md mx-auto"
-          style={{ color: theme.textColor, opacity: 0.7 }}
-        >
+        <p className="text-lg text-[rgba(165,243,252,0.7)] max-w-md mx-auto">
           Vamos começar uma conversa interativa para coletar suas informações
         </p>
       </motion.div>
@@ -76,12 +47,9 @@ export const WelcomeScreen = ({ formName, onStart }: WelcomeScreenProps) => {
       >
         <Button
           onClick={onStart}
+          variant="primary"
           size="lg"
-          className={`px-8 py-6 text-lg font-semibold transition-all ${getShadowClass()}`}
-          style={{ 
-            backgroundColor: theme.primaryColor,
-            borderRadius: getButtonRadius()
-          }}
+          className="px-8 py-6 text-lg font-semibold"
         >
           Começar 🚀
         </Button>

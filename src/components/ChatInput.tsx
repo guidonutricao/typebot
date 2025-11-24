@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Send } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/design-system";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -80,12 +80,8 @@ export const ChatInput = ({
       <Button
         type="submit"
         disabled={disabled || !value.trim()}
-        size="icon"
-        className="h-10 w-10 shrink-0"
-        style={{ 
-          backgroundColor: theme.primaryColor,
-          borderRadius: getButtonRadius()
-        }}
+        variant="primary"
+        className="h-10 w-10 shrink-0 px-0"
       >
         <Send className="h-4 w-4" />
       </Button>
@@ -100,18 +96,6 @@ interface ChoiceButtonProps {
 }
 
 export const ChoiceButton = ({ label, onClick, disabled }: ChoiceButtonProps) => {
-  const { theme } = useThemeStore();
-
-  const getShadowClass = () => {
-    switch (theme.shadowIntensity) {
-      case 'none': return '';
-      case 'sm': return 'shadow-sm';
-      case 'md': return 'shadow-md';
-      case 'lg': return 'shadow-lg';
-      default: return 'shadow-md';
-    }
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -122,25 +106,8 @@ export const ChoiceButton = ({ label, onClick, disabled }: ChoiceButtonProps) =>
       <Button
         onClick={onClick}
         disabled={disabled}
-        variant="outline"
-        className={cn(
-          "w-full border-2 transition-all duration-200 text-left justify-start h-auto py-3 px-4",
-          getShadowClass()
-        )}
-        style={{ 
-          borderRadius: theme.borderRadius,
-          borderColor: theme.secondaryColor + '40',
-          fontFamily: theme.fontFamily,
-          color: theme.textColor
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = theme.primaryColor;
-          e.currentTarget.style.backgroundColor = theme.primaryColor + '10';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = theme.secondaryColor + '40';
-          e.currentTarget.style.backgroundColor = 'transparent';
-        }}
+        variant="secondary"
+        className="w-full text-left justify-start h-auto py-3 px-4"
       >
         {label}
       </Button>

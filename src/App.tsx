@@ -7,8 +7,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Form from "./pages/Form";
 import Auth from "./pages/Auth";
-import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
+import DesignSystemDemo from "./pages/DesignSystemDemo";
 import { AdminLayout } from "./layouts/AdminLayout";
 import { FlowLayout } from "./layouts/FlowLayout";
 import Dashboard from "./pages/admin/Dashboard";
@@ -47,8 +47,8 @@ const App = () => {
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
-          <Route path="/profile" element={<Profile />} />
           <Route path="/forms/:formId" element={<Form />} />
+          <Route path="/design-system" element={<DesignSystemDemo />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="dashboard" element={<Dashboard />} />

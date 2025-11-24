@@ -8,7 +8,7 @@ export default function Index() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/profile");
+      navigate("/admin/dashboard");
     } else {
       navigate("/auth");
     }
